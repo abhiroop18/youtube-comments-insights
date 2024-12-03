@@ -61,7 +61,7 @@ def load_model_and_vectorizer(model_name, model_version, vectorizer_path):
     return model, vectorizer
 
 # Initialize the model and vectorizer
-model, vectorizer = load_model_and_vectorizer("yt_chrome_plugin_model", "4", "./tfidf_vectorizer.pkl")  # Update paths and versions as needed
+model, vectorizer = load_model_and_vectorizer("yt_chrome_plugin_model", "6", "./tfidf_vectorizer.pkl")  # Update paths and versions as needed
 
 @app.route('/')
 def home():
@@ -97,27 +97,47 @@ def predict_with_timestamps():
     response = [{"comment": comment, "sentiment": sentiment, "timestamp": timestamp} for comment, sentiment, timestamp in zip(comments, predictions, timestamps)]
     return jsonify(response)
 
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 @app.route('/predict', methods=['POST'])
 def predict():
     data = request.json
     comments = data.get('comments')
     
     if not comments:
+        logger.error("No comments provided")
         return jsonify({"error": "No comments provided"}), 400
 
     try:
+        # Log raw comments
+        logger.debug(f"Received comments: {comments}")
+
         # Preprocess each comment before vectorizing
         preprocessed_comments = [preprocess_comment(comment) for comment in comments]
+        logger.debug(f"Preprocessed comments: {preprocessed_comments}")
         
         # Transform comments using the vectorizer
         transformed_comments = vectorizer.transform(preprocessed_comments)
-        
+        dense_matrix = transformed_comments.toarray()
+        print(dense_matrix)
+        print(transformed_comments.dtype)
+        transformed_comments_dense = transformed_comments.toarray()
+
+        logger.debug(f"Transformed comments shape: {transformed_comments.shape}")
+        logger.debug(f"Transformed comments data: {transformed_comments}")
+
         # Make predictions
-        predictions = model.predict(transformed_comments).tolist()  # Convert to list
+        predictions = model.predict(transformed_comments_dense).tolist()  # Convert to list
+        logger.debug(f"Predictions: {predictions}")
         
         # Convert predictions to strings for consistency
         predictions = [str(pred) for pred in predictions]
     except Exception as e:
+        logger.error(f"Prediction failed at step: {str(e)}")
         return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
     
     # Return the response with original comments and predicted sentiments
